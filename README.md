@@ -1,27 +1,28 @@
 # Pwngdb
 
-GDB for pwn.
+Develop my own GDB for pwn.
 
 ## Install
+```bash
+$ wget -q -O- https://raw.githubusercontent.com/0x01f/Pwngdb/master/install.sh| sh
+```
 
 ### install
-	cd ~/
-	git clone https://github.com/scwuaptx/Pwngdb.git 
-	cp ~/Pwngdb/.gdbinit ~/
 
-If you dont want to use gdb-peda , you can modify the gdbinit to remove it.
+~~If you dont want to use gdb-peda , you can modify the gdbinit to remove it.~~
+I prefer pwndbg so I modify the .gdbinit
 
 ### Heapinfo 
 
 If you want to use the feature of heapinfo and tracemalloc , you need to install libc debug file (libc6-dbg & libc6-dbg:i386 for debian package) 
 
-## Features
+## Features from Pwngdb
 
++ `canary`: Print the canary of using function
 + `libc` : Print the base address of libc
 + `ld` : Print the base address of ld
 + `codebase` : Print the base of code segment
-+ `heap` : Print the base of heap
-+ `got` : Print the Global Offset Table infomation
++ `heapbase` : Print the base of heap
 + `dyn` : Print the Dynamic section infomation
 + `findcall` : Find some function call 
 + `bcall` : Set the breakpoint at some function call
@@ -56,6 +57,9 @@ If you want to use the feature of heapinfo and tracemalloc , you need to install
 	+ orange (Address of FILE)
 	+ glibc version <= 2.23
 
+## Features from pwndbg
++ `got` : Print the Global Offset Table infomation
++ `fake_fastbin_all` : find all the fake fastbin of a given address
 
 ## Screenshot
 

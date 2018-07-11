@@ -1,4 +1,4 @@
-source ~/Pwngdb/pwndbg_ori/gdbinit.py
+source ~/Pwngdb/pwndbg/gdbinit.py
 source ~/Pwngdb/pwngdb.py
 source ~/Pwngdb/angelheap/gdbinit.py
 

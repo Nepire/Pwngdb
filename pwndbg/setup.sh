@@ -61,6 +61,3 @@ ${PYTHON} -m pip install ${INSTALLFLAGS} --upgrade pip
 ${PYTHON} -m pip install ${INSTALLFLAGS} -Ur requirements.txt
 
 # Load Pwndbg into GDB on every launch.
-if ! grep pwndbg ~/.gdbinit &>/dev/null; then
-    echo "source $PWD/gdbinit.py" >> ~/.gdbinit
-fi
