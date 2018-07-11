@@ -10,7 +10,7 @@ $ wget -q -O- https://raw.githubusercontent.com/0x01f/Pwngdb/master/install.sh| 
 ### install
 
 ~~If you dont want to use gdb-peda , you can modify the gdbinit to remove it.~~
-I prefer pwndbg so I modify the .gdbinit
+I prefer pwndbg so I modified the .gdbinit
 
 ### Heapinfo 
 
