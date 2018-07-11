@@ -54,7 +54,7 @@ def libc():
 
 @pwndbg.commands.Command
 @pwndbg.commands.OnlyWhenRunning
-def heap():
+def heapbase():
     """ Get heapbase """
     heapbase = getheapbase()
     if heapbase :
@@ -143,13 +143,6 @@ def findsyscall(*arg):
         gdb.execute("search -e -x 010000d4 {}".format(vmmap))
     else :
         print("arch not support")
-
-@pwndbg.commands.Command
-@pwndbg.commands.OnlyWithFile
-def got():
-    """ Print the got table """
-    cmd = "objdump -R {} {}".format("--demangle" if iscplus() else "", pwndbg.proc.exe)
-    print(subprocess.check_output(cmd, shell=True)[:-2].decode("utf8").strip())
 
 @pwndbg.commands.Command
 @pwndbg.commands.OnlyWithFile
