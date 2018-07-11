@@ -58,6 +58,6 @@ fi
 ${PYTHON} -m pip install ${INSTALLFLAGS} --upgrade pip
 
 # Install Python dependencies
-${PYTHON} -m pip install ${INSTALLFLAGS} -Ur requirements.txt
+${PYTHON} -m pip install ${INSTALLFLAGS} -Ur ~/Pwngdb/pwndbg/requirements.txt
 
 # Load Pwndbg into GDB on every launch.
