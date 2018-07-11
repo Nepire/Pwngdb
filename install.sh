@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euxo pipefail
+# set -euxo pipefail
 
 cd ~/
 git clone https://github.com/0x01f/Pwngdb.git
