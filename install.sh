@@ -1,6 +1,3 @@
-#!/usr/bin/env bash
-# set -euxo pipefail
-
 cd ~/
 git clone https://github.com/0x01f/Pwngdb.git
 cd ~/Pwngdb
