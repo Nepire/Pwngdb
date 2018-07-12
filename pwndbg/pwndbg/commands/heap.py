@@ -193,8 +193,7 @@ def top_chunk(addr=None):
 
 @pwndbg.commands.ParsedCommand
 @pwndbg.commands.OnlyWhenRunning
-@pwndbg.commands.OnlyWhenHeapIsInitialized
-def malloc_chunk(addr,fake=False):
+def malloc_chunk(addr):
     """
     Prints out the malloc_chunk at the specified address.
     """
@@ -208,13 +207,11 @@ def malloc_chunk(addr,fake=False):
     actual_size = size & ~7
     prev_inuse, is_mmapped, non_main_arena = main_heap.chunk_flags(size)
     arena = None
-    if not fake and non_main_arena:
+    if non_main_arena:
         arena = main_heap.get_heap(addr)['ar_ptr']
 
-    fastbins = [] if fake else main_heap.fastbins(arena)
+    fastbins = main_heap.fastbins(arena)
     header = M.get(addr)
-    if fake:
-        header += message.prompt(' FAKE')
     if prev_inuse:
         if actual_size in fastbins:
             header += message.hint(' FASTBIN')
@@ -224,8 +221,14 @@ def malloc_chunk(addr,fake=False):
         header += message.hint(' IS_MMAPED')
     if non_main_arena:
         header += message.hint(' NON_MAIN_ARENA')
-    print(header, chunk["value"])
+    ## edit start
+    chunk_str='{\n'
+    for key in chunk["value"].type.keys():
+        chunk_str+='  %s = %s,\n'%(str(key),hex(int(chunk["value"][key])))
+    chunk_str+='}'
 
+    print(header, chunk_str)
+    ## edit end
     return chunk
 
 @pwndbg.commands.ParsedCommand
