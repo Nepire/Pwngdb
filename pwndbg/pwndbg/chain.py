@@ -19,7 +19,7 @@ import pwndbg.vmmap
 
 LIMIT = pwndbg.config.Parameter('dereference-limit', 5, 'max number of pointers to dereference in a chain')
 
-def get(address, limit=LIMIT, offset=0, hard_stop=None, hard_end=0):
+def get(address, limit=LIMIT, offset=0, hard_stop=None, hard_end=0, include_start=True):
     """
     Recursively dereferences an address. For bare metal, it will stop when the address is not in any of vmmap pages to avoid redundant dereference.
 
