@@ -47,6 +47,7 @@ def start(*a):
 
     symbols = ["main",
                 "_main",
+                "__libc_start_main",
                 "start",
                 "_start",
                 "init",
@@ -54,6 +55,7 @@ def start(*a):
 
     for symbol in symbols:
         address = pwndbg.symbol.address(symbol)
+        print(symbol, address)
 
         if not address:
             continue
@@ -63,12 +65,10 @@ def start(*a):
         gdb.execute(run, from_tty=False, to_string=True)
         return
 
-    else:
-        b = gdb.Breakpoint("_start", temporary=True)
-        gdb.execute(run, from_tty=False, to_string=True)
-        return
-
-
+    #  else:
+        #  b = gdb.Breakpoint("_start", temporary=True)
+        #  gdb.execute(run, from_tty=False, to_string=True)
+        #  return
 
     #  print(run)
     # Try a breakpoint at the binary entry
