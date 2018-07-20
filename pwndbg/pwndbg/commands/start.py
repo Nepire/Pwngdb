@@ -65,10 +65,10 @@ def start(*a):
         gdb.execute(run, from_tty=False, to_string=True)
         return
 
-    #  else:
-        #  b = gdb.Breakpoint("_start", temporary=True)
-        #  gdb.execute(run, from_tty=False, to_string=True)
-        #  return
+    else:
+        b = gdb.Breakpoint("_start", temporary=True)
+        gdb.execute(run, from_tty=False, to_string=True)
+        return
 
     #  print(run)
     # Try a breakpoint at the binary entry
