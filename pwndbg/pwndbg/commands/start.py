@@ -58,10 +58,19 @@ def start(*a):
         if not address:
             continue
 
+        #  print("no symbol found")
         b = gdb.Breakpoint(symbol, temporary=True)
         gdb.execute(run, from_tty=False, to_string=True)
         return
 
+    else:
+        b = gdb.Breakpoint("_start", temporary=True)
+        gdb.execute(run, from_tty=False, to_string=True)
+        return
+
+
+
+    #  print(run)
     # Try a breakpoint at the binary entry
     entry(*a)
 
@@ -73,7 +82,9 @@ def entry(*a):
     Set a breakpoint at the first instruction executed in
     the target binary.
     """
+    print("calling entry")
     global break_on_first_instruction
     break_on_first_instruction = True
     run = 'run ' + ' '.join(map(quote, a))
+    print(run)
     gdb.execute(run, from_tty=False)
