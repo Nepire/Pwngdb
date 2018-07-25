@@ -55,7 +55,7 @@ def start(*a):
 
     for symbol in symbols:
         address = pwndbg.symbol.address(symbol)
-        print(symbol, address)
+        #  print(symbol, address)
 
         if not address:
             continue

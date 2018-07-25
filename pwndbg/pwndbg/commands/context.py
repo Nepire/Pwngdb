@@ -399,11 +399,11 @@ def context_signal():
 
 context_sections = {
     'r': context_regs,
-    'd': context_disasm,
-    'a': context_args,
+    #  'a': context_args,
     'c': context_code,
     's': context_stack,
-    'b': context_backtrace
+    'd': context_disasm,
+    #  'b': context_backtrace
 }
 
 
