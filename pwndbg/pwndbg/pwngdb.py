@@ -36,7 +36,7 @@ def procmap():
     else :
         return "error"
 
-def libcbase():
+def libc_base():
     data = re.search(".*libc.*\.so", procmap())
     if data :
         libcaddr = data.group().split("-")[0]
@@ -104,7 +104,7 @@ def getcanary():
         return -1
 
 def getoff(symbol):
-    libc = libcbase()
+    libc = libc_base()
     symbol = to_int(symbol)
 
     if isinstance(symbol, int):

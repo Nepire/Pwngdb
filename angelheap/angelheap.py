@@ -337,7 +337,7 @@ def procmap():
     else :
         return "error"
 
-def libcbase():
+def libc_base():
     infomap = procmap()
     data = re.search(".*libc.*\.so",infomap)
     if data :
@@ -347,7 +347,7 @@ def libcbase():
         return 0
 
 def getoff(sym):
-    libc = libcbase()
+    libc = libc_base()
     if type(sym) is int :
         return sym-libc
     else :
@@ -388,7 +388,7 @@ def set_main_arena():
     if offset == 0: # no main_arena symbol
         print("Cannot get main_arena's symbol address. Make sure you install libc debug file (libc6-dbg & libc6-dbg:i386 for debian package).")
         return
-    libc = libcbase()
+    libc = libc_base()
     arch = getarch()
     main_arena_off = offset
     main_arena = libc + main_arena_off
@@ -556,7 +556,7 @@ def trace_normal_bin(chunkhead,arena=None):
     global freememoryarea 
     if not arena :
         arena = main_arena
-    libc = libcbase()
+    libc = libc_base()
     bins = []
     if capsize == 0 :
         arch = getarch()

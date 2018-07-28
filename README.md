@@ -20,9 +20,9 @@ If you want to use the feature of heapinfo and tracemalloc , you need to install
 ## Features from Pwngdb
 
 + `canary`: Print the canary of using function
-+ `libc` : Print the base address of libc
 + `ld` : Print the base address of ld
 + `at` : Attach by process name
++ `libcbase` : Print the base address of libc
 + `codebase` : Print the base of code segment
 + `heapbase` : Print the base of heap
 + `dyn` : Print the Dynamic section infomation

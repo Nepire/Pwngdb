@@ -54,9 +54,9 @@ class PwnCmd(object):
         # list all commands
         self.commands = [cmd for cmd in dir(self) if callable(getattr(self, cmd)) ]  
 
-    def libc(self):
+    def libcbase(self):
         """ Get libc base """
-        libcbs = libcbase()
+        libcbs = libc_base()
 
         print("\033[34m" + "libc : " + "\033[37m" + hex(libcbs))
 
@@ -197,7 +197,7 @@ class PwnCmd(object):
             pidlist = subprocess.check_output("pidof " + processname,shell=True).decode('utf8').split()
             gdb.execute("attach " + pidlist[0])
             getheapbase()
-            libcbase()
+            libc_base()
             codeaddr()
             ldbase()
         except :
@@ -374,7 +374,7 @@ def getprocname(relative=False):
         return procname.split("/")[-1]
     return procname
 
-def libcbase():
+def libc_base():
     infomap = procmap()
     data = re.search(".*libc.*\.so",infomap)
     if data :
@@ -450,7 +450,7 @@ def getcanary():
         return "error"
 
 def getoff(sym):
-    libc = libcbase()
+    libc = libc_base()
     if type(sym) is int :
         return sym-libc
     else :
