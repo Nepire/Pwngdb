@@ -11,7 +11,7 @@ $ wget -q -O- https://raw.githubusercontent.com/0x01f/Pwngdb/master/install.sh| 
 
 ~~If you dont want to use gdb-peda , you can modify the gdbinit to remove it.~~
 
-I prefer pwndbg so I modified the .gdbinit
+I prefer pwndbg so I modified the .gdbinit to using pwndbg.
 
 ### Heapinfo 
 
@@ -61,6 +61,7 @@ If you want to use the feature of heapinfo and tracemalloc , you need to install
 ## Features from pwndbg
 + `got` : Print the Global Offset Table infomation
 + `fake_fastbin_all` : find all the fake fastbin of a given address
++ `bpie`: set breakpoint when PIE enabled. eg: `bpie 0x980`
 
 ## Screenshot
 
