@@ -4,7 +4,7 @@ Develop my own GDB for pwn.
 
 ## Install
 ```bash
-$ wget -q -O- https://raw.githubusercontent.com/0x01f/Pwngdb/master/install.sh | sh
+$ wget -q -O- https://raw.githubusercontent.com/bash-c/Pwngdb/master/install.sh | sh
 ```
 
 ### install
