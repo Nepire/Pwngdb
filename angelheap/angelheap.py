@@ -385,7 +385,8 @@ def set_main_arena():
     global main_arena_off
 
     offset = getoff("&main_arena")
-    print(offset)
+    # main_arena 
+    #  print(offset)
     if offset == 0: # no main_arena symbol
         print("Cannot get main_arena's symbol address. Make sure you install libc debug file (libc6-dbg & libc6-dbg:i386 for debian package).")
         return
