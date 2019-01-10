@@ -1,4 +1,9 @@
 #! /bin/bash
+export LC_ALL=C
+
 git clone https://github.com/nepire/Pwngdb.git ~/Pwngdb
-chmod +x ~/Pwngdb/pwndbg/setup.sh && cd ~/Pwngdb/pwndbg/ && ./setup.sh
-cp ~/Pwngdb/.gdbinit ~/.gdbinit
+sudo apt-get install -y python-setuptools
+sudo apt-get install -y python3-setuptools
+cd ~/Pwngdb/pwndbg/
+chmod a+x ./setup.sh && ./setup.sh
+cp ./.gdbinit ~/.gdbinit
