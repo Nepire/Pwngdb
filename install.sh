@@ -1,5 +1,5 @@
 cd ~/
-git clone https://github.com/bash-c/Pwngdb.git
+git clone https://github.com/nepire/Pwngdb.git
 cd ~/Pwngdb
 chmod +x ./pwndbg/setup.sh
 ./pwndbg/setup.sh
