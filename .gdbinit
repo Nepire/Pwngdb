@@ -1,3 +1,4 @@
+#########pwndbg + pwngdb#############
 source ~/Pwngdb/pwndbg/gdbinit.py
 source ~/Pwngdb/pwngdb.py
 source ~/Pwngdb/angelheap/gdbinit.py
@@ -8,3 +9,5 @@ import angelheap
 angelheap.init_angelheap()
 end
 end
+######################################
+
