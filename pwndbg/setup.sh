@@ -126,7 +126,7 @@ if ! hash gdb; then
 fi
 
 # Update all submodules
-git submodule update --init --recursive
+#git submodule update --init --recursive
 
 # Find the Python version used by GDB.
 PYVER=$(gdb -batch -q --nx -ex 'pi import platform; print(".".join(platform.python_version_tuple()[:2]))')
