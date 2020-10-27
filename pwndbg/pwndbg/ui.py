@@ -3,10 +3,6 @@
 """
 A few helpers for making things print pretty-like.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import fcntl
 import os
@@ -37,11 +33,12 @@ def check_title_position():
               (title_position, ', '.join(valid_values))))
         title_position.revert_default()
 
-
-def banner(title):
+def banner(title, target=sys.stdin, width=None):
     title = title.upper()
-    _height, width = get_window_size()
-    title = '%s%s%s' % (config.banner_title_surrounding_left, C.banner_title(title), config.banner_title_surrounding_right)
+    if width is None: # auto width. In case of stdout, it's better to use stdin (b/c GdbOutputFile)
+        _height, width = get_window_size(target=target if target != sys.stdout else sys.stdin)
+    if title:
+        title = '%s%s%s' % (config.banner_title_surrounding_left, C.banner_title(title), config.banner_title_surrounding_right)
     if 'left' == title_position:
         banner = ljust_colored(title, width, config.banner_separator)
     elif 'right' == title_position:
@@ -55,13 +52,13 @@ def addrsz(address):
     address = int(address) & pwndbg.arch.ptrmask
     return "%{}x".format(2*pwndbg.arch.ptrsize) % address
 
-def get_window_size():
+def get_window_size(target=sys.stdin):
     fallback = (int(os.environ.get('LINES', 20)), int(os.environ.get('COLUMNS', 80)))
-    if not sys.stdin.isatty:
+    if not target.isatty():
         return fallback
     try:
         # get terminal size and force ret buffer len of 4 bytes for safe unpacking by passing equally long arg
-        rows, cols = struct.unpack('hh', fcntl.ioctl(sys.stdin.fileno(), termios.TIOCGWINSZ, '1234'))
+        rows, cols = struct.unpack('hh', fcntl.ioctl(target.fileno(), termios.TIOCGWINSZ, '1234'))
     except:
         rows, cols = fallback
     return rows, cols

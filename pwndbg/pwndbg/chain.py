@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import gdb
 
@@ -29,14 +25,14 @@ def get(address, limit=LIMIT, offset=0, hard_stop=None, hard_end=0, include_star
         offset(int): offset into the address to get the next pointer
         hard_stop(int): address to stop at
         hard_end: value to append when hard_stop is reached
+        include_start(bool): whether to include starting address or not
 
     Returns:
         A list representing pointers of each ```address``` and reference
     """
     limit = int(limit)
 
-    ##result = [address]
-    result = [] ##patch 1
+    result = [address] if include_start else []
     for i in range(limit):
         # Don't follow cycles, except to stop at the second occurrence.
         if result.count(address) >= 2:
@@ -46,7 +42,6 @@ def get(address, limit=LIMIT, offset=0, hard_stop=None, hard_end=0, include_star
             result.append(hard_end)
             break
 
-        result.append(address) ##patch 2
         try:
             address = address + offset
 
@@ -57,11 +52,12 @@ def get(address, limit=LIMIT, offset=0, hard_stop=None, hard_end=0, include_star
 
             address = int(pwndbg.memory.poi(pwndbg.typeinfo.ppvoid, address))
             address &= pwndbg.arch.ptrmask
-            ##result.append(address) ##patch 3
+            result.append(address)
         except gdb.MemoryError:
             break
 
     return result
+
 
 config_arrow_left  = theme.Parameter('chain-arrow-left', '◂—', 'left arrow of chain formatting')
 config_arrow_right = theme.Parameter('chain-arrow-right', '—▸', 'right arrow of chain formatting')

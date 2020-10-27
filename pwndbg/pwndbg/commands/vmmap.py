@@ -3,15 +3,9 @@
 """
 Command to print the virtual memory map a la /proc/self/maps.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import argparse
 
 import gdb
-import six
 from elftools.elf.constants import SH_FLAGS
 from elftools.elf.elffile import ELFFile
 
@@ -20,17 +14,17 @@ import pwndbg.commands
 import pwndbg.elf
 import pwndbg.vmmap
 
+integer_types = (int, gdb.Value)
 
-def pages_filter(s):
-    gdbval_or_str = pwndbg.commands.sloppy_gdb_parse(s)
 
+def pages_filter(gdbval_or_str):
     # returns a module filter
-    if isinstance(gdbval_or_str, six.string_types):
+    if isinstance(gdbval_or_str, str):
         module_name = gdbval_or_str
         return lambda page: module_name in page.objfile
 
     # returns an address filter
-    elif isinstance(gdbval_or_str, six.integer_types + (gdb.Value,)):
+    elif isinstance(gdbval_or_str, integer_types):
         addr = gdbval_or_str
         return lambda page: addr in page
 
@@ -39,23 +33,42 @@ def pages_filter(s):
 
 
 parser = argparse.ArgumentParser()
-parser.description = 'Print virtual memory map pages. Results can be filtered by providing address/module name.'
-parser.add_argument('pages_filter', type=pages_filter, nargs='?', default=None,
+parser.description = '''Print virtual memory map pages. Results can be filtered by providing address/module name.
+
+Memory pages on QEMU targets may be inaccurate. This is because:
+- for QEMU kernel on X86/X64 we fetch memory pages via `monitor info mem` and it doesn't inform if memory page is executable
+- for QEMU user emulation we detected memory pages through AUXV (sometimes by finding AUXV on the stack first)
+- for others, we create mempages by exploring current register values (this is least correct)
+
+Memory pages can also be added manually, see vmmap_add, vmmap_clear and vmmap_load commands.'''
+parser.formatter_class=argparse.RawDescriptionHelpFormatter
+parser.add_argument('gdbval_or_str', type=pwndbg.commands.sloppy_gdb_parse, nargs='?', default=None,
                     help='Address or module name.')
 
 
-@pwndbg.commands.ArgparsedCommand(parser)
+@pwndbg.commands.ArgparsedCommand(parser, aliases=['lm', 'address', 'vprot'])
 @pwndbg.commands.OnlyWhenRunning
-def vmmap(pages_filter=None):
-    pages = list(filter(pages_filter, pwndbg.vmmap.get()))
+def vmmap(gdbval_or_str=None):
+    pages = pwndbg.vmmap.get()
+
+    if gdbval_or_str:
+        pages = list(filter(pages_filter(gdbval_or_str), pages))
 
     if not pages:
         print('There are no mappings for specified address or module.')
         return
 
     print(M.legend())
-    for page in pages:
-        print(M.get(page.vaddr, text=str(page)))
+
+    if len(pages) == 1 and isinstance(gdbval_or_str, integer_types):
+        page = pages[0]
+        print(M.get(page.vaddr, text=str(page) + ' +0x%x' % (int(gdbval_or_str) - page.vaddr)))
+    else:
+        for page in pages:
+            print(M.get(page.vaddr, text=str(page)))
+
+    if pwndbg.qemu.is_qemu():
+        print("\n[QEMU target detected - vmmap result might not be accurate; see `help vmmap`]")
 
 
 parser = argparse.ArgumentParser()
@@ -86,7 +99,7 @@ def vmmap_add(start, size, flags, offset):
     print('%r added' % page)
 
 
-@pwndbg.commands.ParsedCommand
+@pwndbg.commands.ArgparsedCommand("Clear the vmmap cache.") #TODO is this accurate?
 def vmmap_clear():
     pwndbg.vmmap.clear_custom_page()
 

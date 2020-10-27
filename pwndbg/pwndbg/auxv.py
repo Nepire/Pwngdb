@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import os
 import re
@@ -165,7 +161,7 @@ def walk_stack():
 
     if not auxv.get('AT_EXECFN', None):
         try:
-            auxv['AT_EXECFN'] = get_execfn()
+            auxv['AT_EXECFN'] = _get_execfn()
         except gdb.MemoryError:
             pass
 
@@ -245,7 +241,7 @@ def walk_stack2(offset=0):
 
     return auxv
 
-def get_execfn():
+def _get_execfn():
     # If the stack is not sane, this won't work
     if not pwndbg.memory.peek(pwndbg.regs.sp):
         return

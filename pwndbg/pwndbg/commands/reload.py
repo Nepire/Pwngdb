@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import imp
 import os
@@ -43,13 +39,13 @@ def rreload(module, mdict=None):
         pass
 
 
-@pwndbg.commands.Command
+@pwndbg.commands.ArgparsedCommand("Reload pwndbg.")
 def reload(*a):
     pwndbg.events.on_reload()
     rreload(pwndbg)
     pwndbg.events.after_reload()
 
-@pwndbg.commands.Command
+@pwndbg.commands.ArgparsedCommand("Makes pwndbg reinitialize all state.")
 def reinit_pwndbg():
     """
     Makes pwndbg reinitialize all state.

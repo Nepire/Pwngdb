@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import argparse
 import re
@@ -23,7 +19,7 @@ parser.add_argument('argument', nargs='*', type=str,
                     help='Arguments to pass to ROPgadget')
 
 
-@pwndbg.commands.ArgparsedCommand(parser)
+@pwndbg.commands.ArgparsedCommand(parser, aliases=["ropgadget"])
 @pwndbg.commands.OnlyWithFile
 def rop(grep, argument):
     with tempfile.NamedTemporaryFile() as corefile:
@@ -58,7 +54,3 @@ def rop(grep, argument):
         for line in stdout.splitlines():
             if re.search(grep, line):
                 print(line)
-
-@pwndbg.commands.Command
-def ropgadget(*a):
-    return rop(*a)

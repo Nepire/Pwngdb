@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
+import itertools
 import os.path
 import re
 
@@ -14,8 +11,9 @@ from pwndbg.color import theme
 
 try:
     import pygments
-    import pygments.lexers
     import pygments.formatters
+    import pygments.lexers
+
     from pwndbg.color.lexer import PwntoolsLexer
 except ImportError:
     pygments = None
@@ -34,6 +32,10 @@ def check_style():
         formatter = pygments.formatters.Terminal256Formatter(
             style=str(style)
         )
+
+        # Reset the highlighted source cache
+        from pwndbg.commands.context import get_highlight_source
+        get_highlight_source._reset()
     except pygments.util.ClassNotFound:
         print(message.warn("The pygment formatter style '%s' is not found, restore to default" % style))
         style.revert_default()
@@ -60,13 +62,14 @@ def syntax_highlight(code, filename='.asm'):
 
     if not lexer:
         try:
-            lexer = pygments.lexers.guess_lexer_for_filename(filename, code)
+            lexer = pygments.lexers.guess_lexer_for_filename(filename, code, stripnl=False)
         except pygments.util.ClassNotFound:
             # no lexer for this file or invalid style
             pass
 
     if lexer:
         lexer_cache[filename] = lexer
+
         code = pygments.highlight(code, lexer, formatter).rstrip()
 
     return code

@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 # This license covers everything within this project, except for a few pieces
 # of code that we either did not write ourselves or which we derived from code
@@ -46,7 +42,7 @@ def which(name, all = False):
     returns a full path if found.
 
     If `all` is :const:`True` the set of all found locations is returned, else
-    the first occurence or :const:`None` is returned.
+    the first occurrence or :const:`None` is returned.
 
     Arguments:
       `name` (str): The file to search for.

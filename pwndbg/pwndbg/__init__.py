@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import signal
 
 import gdb
@@ -31,7 +26,9 @@ import pwndbg.commands.got
 import pwndbg.commands.heap
 import pwndbg.commands.hexdump
 import pwndbg.commands.ida
+import pwndbg.commands.leakfind
 import pwndbg.commands.misc
+import pwndbg.commands.mprotect
 import pwndbg.commands.next
 import pwndbg.commands.peda
 import pwndbg.commands.pie
@@ -66,7 +63,6 @@ import pwndbg.elf
 import pwndbg.exception
 import pwndbg.gdbutils.functions
 import pwndbg.heap
-import pwndbg.inthook
 import pwndbg.memory
 import pwndbg.net
 import pwndbg.proc
@@ -86,6 +82,7 @@ version = __version__
 
 try:
     import unicorn
+
     import pwndbg.emu
 except:
     pass
@@ -106,6 +103,7 @@ __all__ = [
 'hexdump',
 'ida',
 'info',
+'leakfind',
 'linkmap',
 'malloc',
 'memoize',
@@ -136,7 +134,6 @@ set backtrace past-main on
 set step-mode on
 set print pretty on
 set width %i
-set print elements 15
 handle SIGALRM nostop print nopass
 handle SIGBUS  stop   print nopass
 handle SIGPIPE nostop print nopass

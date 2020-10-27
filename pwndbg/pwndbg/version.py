@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import os
 import subprocess
@@ -26,7 +22,7 @@ def build_id():
         # CalledProcessError -> git return code != 0
         return ''
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 b_id = build_id()
 

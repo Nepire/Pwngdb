@@ -1,13 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import collections
 
 import capstone
+import gdb
 from capstone import *
 
 import pwndbg.memoize
@@ -26,7 +23,7 @@ for value1, name1 in dict(access).items():
         access.setdefault(value1 | value2, '%s | %s' % (name1, name2))
 
 
-class DisassemblyAssistant(object):
+class DisassemblyAssistant:
     # Registry of all instances, {architecture: instance}
     assistants = {}
 
@@ -147,7 +144,12 @@ class DisassemblyAssistant(object):
 
             # self.memory may return none, so we need to check it here again
             if addr is not None:
-                addr = int(pwndbg.memory.poi(pwndbg.typeinfo.ppvoid, addr))
+                try:
+                    # fails with gdb.MemoryError if the dereferenced address
+                    # doesn't belong to any of process memory maps
+                    addr = int(pwndbg.memory.poi(pwndbg.typeinfo.ppvoid, addr))
+                except gdb.MemoryError:
+                    return None
         if op.type == CS_OP_REG:
             addr = self.register(instruction, op)
 
@@ -193,8 +195,6 @@ class DisassemblyAssistant(object):
         operand.symbol:
             Resolved symbol name for this operand.
         """
-        current = (instruction.address == pwndbg.regs.pc)
-
         for i, op in enumerate(instruction.operands):
             op.int    = None
             op.symbol = None
@@ -243,6 +243,9 @@ class DisassemblyAssistant(object):
         return None # raise NotImplementedError
 
     def dump(self, instruction):
+        """
+        Debug-only method.
+        """
         ins = instruction
         rv  = []
         rv.append('%s %s' % (ins.mnemonic, ins.op_str))

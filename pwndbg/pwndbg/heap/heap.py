@@ -1,15 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import pwndbg.events
 import pwndbg.symbol
 
 
-class BaseHeap(object):
+class BaseHeap:
     """Heap abstraction layer."""
 
     def breakpoint(event):
@@ -48,6 +44,14 @@ class BaseHeap(object):
 
     def is_initialized(self):
         """Returns whether the allocator is initialized or not.
+
+        Returns:
+            A boolean.
+        """
+        raise NotImplementedError()
+
+    def libc_has_debug_syms(self):
+        """Returns whether the libc has debug symbols or not.
 
         Returns:
             A boolean.

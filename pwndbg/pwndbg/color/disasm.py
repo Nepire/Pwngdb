@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import capstone
 
@@ -53,13 +49,11 @@ def instruction(ins):
 
         # If it's a constant expression, color it directly in the asm.
         if const:
+            asm = '%s <%s>' % (ljust_colored(asm, 36), target)
             asm = asm.replace(hex(ins.target), sym or target)
 
-            if sym:
-                asm = '%s <%s>' % (ljust_colored(asm, 36), target)
-
         # It's not a constant expression, but we've calculated the target
-        # address by emulation.
+        # address by emulation or other means (for example showing ret instruction target)
         elif sym:
             asm = '%s <%s; %s>' % (ljust_colored(asm, 36), target, sym)
 

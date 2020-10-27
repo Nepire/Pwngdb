@@ -1,12 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+import argparse
 
 import gdb
-import six
 
 import pwndbg.commands
 import pwndbg.memory
@@ -24,14 +20,18 @@ def xor_memory(address, key, count):
 
     return mem
 
-@pwndbg.commands.Command
+parser = argparse.ArgumentParser(description="XOR `count` bytes at address` with the key key`.")
+parser.add_argument("address", type=int, help="The address to start xoring at.")
+parser.add_argument("key", type=str, help="The key to use.")
+parser.add_argument("count", type=int, help="The number of bytes to xor.")
+@pwndbg.commands.ArgparsedCommand(parser)
 @pwndbg.commands.OnlyWhenRunning
 def xor(address, key, count):
     '''xor(address, key, count)
 
     XOR ``count`` bytes at ``address`` with the key ``key``.
     '''
-    if not isinstance(address, six.integer_types):
+    if not isinstance(address, int):
         try:
             address = int(address, 0)
         except ValueError:
@@ -44,14 +44,17 @@ def xor(address, key, count):
     except gdb.error as e:
         print(e)
 
-@pwndbg.commands.Command
+parser = argparse.ArgumentParser(description="Memfrobs a region of memory.")
+parser.add_argument("address", type=int, help="The address to start xoring at.")
+parser.add_argument("count", type=int, help="The number of bytes to xor.")
+@pwndbg.commands.ArgparsedCommand(parser)
 @pwndbg.commands.OnlyWhenRunning
 def memfrob(address, count):
     '''memfrob(address, count)
 
     Run the memfrob command on a region of memory
     '''
-    if not isinstance(address, six.integer_types):
+    if not isinstance(address, int):
         try:
             address = int(address, 0)
         except ValueError:

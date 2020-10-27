@@ -4,11 +4,6 @@
 Allows describing functions, specifically enumerating arguments which
 may be passed in a combination of registers and stack values.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import gdb
 from capstone import CS_GRP_CALL
 from capstone import CS_GRP_INT
@@ -113,10 +108,16 @@ def get(instruction):
     name = name or ''
 
     sym   = gdb.lookup_symbol(name)
-    name  = name.strip().lstrip('_')    # _malloc
     name  = name.replace('isoc99_', '') # __isoc99_sscanf
     name  = name.replace('@plt', '')    # getpwiod@plt
-    name  = name.replace('_chk', '')    # __printf_chk
+
+    # If we have particular `XXX_chk` function in our database, we use it.
+    # Otherwise, we show args for its unchecked version.
+    # We also lstrip `_` in here, as e.g. `__printf_chk` needs the underscores.
+    if name not in pwndbg.functions.functions:
+        name  = name.replace('_chk', '')
+        name  = name.strip().lstrip('_')    # _malloc
+
     func = pwndbg.functions.functions.get(name, None)
 
     # Try to extract the data from GDB.

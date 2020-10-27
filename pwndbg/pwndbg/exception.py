@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import functools
 import pdb
@@ -22,7 +18,7 @@ try:
 except ImportError:
     pass
 
-verbose = pwndbg.config.Parameter('exception-verbose', False, 'whether to print a full stacktracefor exceptions raised in Pwndbg commands')
+verbose = pwndbg.config.Parameter('exception-verbose', False, 'whether to print a full stacktrace for exceptions raised in Pwndbg commands')
 debug = pwndbg.config.Parameter('exception-debugger', False, 'whether to debug exceptions raised in Pwndbg commands')
 
 
@@ -33,9 +29,11 @@ def inform_report_issue(exception_msg):
     The use of `memoize` makes it reporting only once for a given exception message.
     """
     print(message.notice(
-        'If that is an issue, you can report it on https://github.com/pwndbg/pwndbg/issues\n'
+        "If that is an issue, you can report it on https://github.com/pwndbg/pwndbg/issues\n"
         "(Please don't forget to search if it hasn't been reported before)\n"
-        "PS: Pull requests are welcome")
+        "To generate the report and open a browser, you may run ") +
+        message.hint("`bugreport --run-browser`") +
+        message.notice("\nPS: Pull requests are welcome")
     )
 
 
@@ -64,11 +62,13 @@ def handle(name='Error'):
     else:
         exc_type, exc_value, exc_traceback = sys.exc_info()
 
-        print(message.error('Exception occured: {}: {} ({})'.format(name, exc_value, exc_type)))
+        print(message.error('Exception occurred: {}: {} ({})'.format(name, exc_value, exc_type)))
 
         print(message.notice('For more info invoke `') +
               message.hint('set exception-verbose on') +
-              message.notice('` and rerun the command'))
+              message.notice('` and rerun the command\nor debug it by yourself with `') +
+              message.hint('set exception-debugger on') +
+              message.notice('`'))
 
     # Break into the interactive debugger
     if debug:

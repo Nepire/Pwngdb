@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
+import argparse
 import ast
 import codecs
+import ctypes
+import json
+import os
 import sys
+from collections import defaultdict
+from io import open
 
 import gdb
 
@@ -33,17 +35,22 @@ from pwndbg.color import message
 from pwndbg.color import theme
 
 
-def clear_screen():
+def clear_screen(out=sys.stdout):
     """
     Clear the screen by moving the cursor to top-left corner and
     clear the content
     """
-    sys.stdout.write('\x1b[H\x1b[J')
+    out.write('\x1b[H\x1b[J')
 
 config_clear_screen = pwndbg.config.Parameter('context-clear-screen', False, 'whether to clear the screen before printing the context')
+config_output = pwndbg.config.Parameter('context-output', 'stdout', 'where pwndbg should output ("stdout" or file/tty).')
 config_context_sections = pwndbg.config.Parameter('context-sections',
-                                                  'regs disasm code stack backtrace',
+                                                  'regs disasm code ghidra stack backtrace expressions',
                                                   'which context sections are displayed (controls order)')
+
+# Storing output configuration per section
+outputs = {}
+output_settings = {}
 
 
 @pwndbg.config.Trigger([config_context_sections])
@@ -64,44 +71,354 @@ def validate_context_sections():
             config_context_sections.revert_default()
             return
 
+class StdOutput:
+    """A context manager wrapper to give stdout"""
+    def __enter__(self):
+        return sys.stdout
+    def __exit__(self, *args, **kwargs):
+        pass
+    def __hash__(self):
+        return hash(sys.stdout)
+    def __eq__(self, other):
+        return type(other) is StdOutput
+
+class FileOutput:
+    """A context manager wrapper to reopen files on enter"""
+    def __init__(self, *args):
+        self.args = args
+        self.handle = None
+    def __enter__(self):
+        self.handle = open(*self.args)
+        return self.handle
+    def __exit__(self, *args, **kwargs):
+        self.handle.close()
+    def __hash__(self):
+        return hash(self.args)
+    def __eq__(self, other):
+        return self.args == other.args
+
+class CallOutput:
+    """A context manager which calls a function on write"""
+    def __init__(self, func):
+        self.func = func
+    def __enter__(self):
+        return self
+    def __exit__(self, *args, **kwargs):
+        pass
+    def __hash__(self):
+        return hash(self.func)
+    def __eq__(self, other):
+        return self.func == other.func
+    def write(self, data):
+        self.func(data)
+    def flush(self):
+        try:
+            return self.func.flush()
+        except AttributeError:
+            pass
+    def isatty(self):
+        try:
+            return self.func.isatty()
+        except AttributeError:
+            return False
+
+
+def output(section):
+    """Creates a context manager corresponding to configured context ouput"""
+    target = outputs.get(section, str(config_output))
+    if not target or target == "stdout":
+        return StdOutput()
+    elif callable(target):
+        return CallOutput(target)
+    else:
+        return FileOutput(target, "w")
+
+parser = argparse.ArgumentParser()
+parser.description = "Sets the output of a context section."
+parser.add_argument("section", type=str, help="The section which is to be configured. ('regs', 'disasm', 'code', 'stack', 'backtrace', and/or 'args')")
+parser.add_argument("path", type=str, help="The path to which the output is written")
+parser.add_argument("clearing", type=bool, help="Indicates weather to clear the output")
+parser.add_argument("banner", type=str, default="both", help="Where a banner should be placed: both, top , bottom, none")
+parser.add_argument("width", type=int, default=None, help="Sets a fixed width (used for banner). Set to None for auto")
+@pwndbg.commands.ArgparsedCommand(parser, aliases=['ctx-out'])
+def contextoutput(section, path, clearing, banner="both", width=None):
+    outputs[section] = path
+    output_settings[section] = dict(clearing=clearing,
+                                    width=width,
+                                    banner_top= banner in ["both", "top"],
+                                    banner_bottom= banner in ["both", "bottom"])
+
+# Watches
+expressions = set()
+expression_commands = {
+    "eval": gdb.parse_and_eval,
+    "execute": lambda exp: gdb.execute(exp, False, True)
+}
+
+parser = argparse.ArgumentParser()
+parser.description = """
+Adds an expression to be shown on context.
+
+'cmd' controls what command is used to interpret the expression.
+eval: the expression is parsed and evaluated as in the debugged language
+execute: the expression is executed as an gdb command
+"""
+parser.add_argument("cmd", type=str, default="eval", nargs="?",
+                    help="Command to be used with the expression. Values are: eval execute")
+parser.add_argument("expression", type=str, help="The expression to be evaluated and shown in context")
+@pwndbg.commands.ArgparsedCommand(parser, aliases=['ctx-watch', 'cwatch'])
+def contextwatch(expression, cmd=None):
+    expressions.add((expression, expression_commands.get(cmd, gdb.parse_and_eval)))
+
+parser = argparse.ArgumentParser()
+parser.description = """Removes an expression previously added to be watched."""
+parser.add_argument("expression", type=str, help="The expression to be removed from context")
+@pwndbg.commands.ArgparsedCommand(parser, aliases=['ctx-unwatch', 'cunwatch'])
+def contextunwatch(expression):
+    global expressions
+    expressions = set((exp,cmd) for exp,cmd in expressions if exp != expression)
+
+def context_expressions(target=sys.stdout, with_banner=True, width=None):
+    if not expressions:
+        return []
+    banner = [pwndbg.ui.banner("expressions", target=target, width=width)]
+    output = []
+    if width is None:
+        _height, width = pwndbg.ui.get_window_size(target=target)
+    for exp,cmd in sorted(expressions):
+        try:
+            # value = gdb.parse_and_eval(exp)
+            value = str(cmd(exp))
+        except gdb.error as err:
+            value = str(err)
+        value = value.split("\n")
+        lines = []
+        for line in value:
+            if width and len(line)+len(exp)+3 > width:
+                n = width - (len(exp)+3) - 1 # 1 Padding...
+                lines.extend(line[i:i+n] for i in range(0, len(line), n))
+            else:
+                lines.append(line)
+
+        fmt = C.highlight(exp)
+        lines[0] = "{} = {}".format(fmt, lines[0])
+        lines[1:] = [" "*(len(exp)+3) + line for line in lines[1:]]
+        output.extend(lines)
+    return banner + output if with_banner else output
+
+# Ghidra integration through radare2
+# This is not (sorry couldn't help it) "the yellow of the egg"
+# Using radare2 is suboptimal and will only be an intermediate step to have
+# ghidra decompiler within pwndbg.
+# But having ghidra in pwndgb is a lot more work as it requires quite some code and c/c++
+radare2 = {}
+
+config_context_ghidra = pwndbg.config.Parameter('context-ghidra',
+                                                  'never',
+                                                  'if or/when to try to decompile with '
+                                                  'ghidra (slow and requires radare2/r2pipe) '
+                                                  '(valid values: always, never, if-no-source)')
+def init_radare2(filename):
+    r2 = radare2.get(filename)
+    if r2:
+        return r2
+    import r2pipe
+    r2 = r2pipe.open(filename)
+    radare2[filename] = r2
+    r2.cmd("aaaa")
+    return r2
+
+parser = argparse.ArgumentParser()
+parser.description = """Show current function decompiled by ghidra"""
+parser.add_argument("func", type=str, default=None, nargs="?",
+                    help="Function to be shown. Defaults to current")
+@pwndbg.commands.ArgparsedCommand(parser, aliases=['ctx-ghidra'])
+def contextghidra(func):
+    print("\n".join(context_ghidra(func, with_banner=False, force_show=True)))
+
+def context_ghidra(func=None, target=sys.stdout, with_banner=True, width=None, force_show=False):
+    banner = [pwndbg.ui.banner("ghidra decompile", target=target, width=width)]
+
+    if config_context_ghidra == "never" and not force_show:
+        return []
+    elif config_context_ghidra == "if-no-source" and not force_show:
+        try:
+            with open(gdb.selected_frame().find_sal().symtab.fullname()) as _:
+                pass
+        except:         # a lot can go wrong in search of source code.
+            return []   # we don't care what, just that it did not work out well...
+
+    filename = gdb.current_progspace().filename
+    try:
+        r2 = init_radare2(filename)
+        # LD         list supported decompilers (e cmd.pdc=?)
+        # Outputs for example:: pdc\npdg
+        if not "pdg" in r2.cmd("LD").split("\n"):
+            return banner + ["radare2 plugin r2ghidra-dec must be installed and available from r2"]
+    except ImportError: # no r2pipe present
+        return banner + ["r2pipe not available, but required for r2->ghidra-bridge"]
+    if func is None:
+        try:
+            func = hex(pwndbg.regs[pwndbg.regs.current.pc])
+        except:
+            func = "main"
+    src = r2.cmdj("pdgj @" + func)
+    source = src.get("code", "")
+    curline = None
+    try:
+        cur = pwndbg.regs[pwndbg.regs.current.pc]
+    except AttributeError:
+        cur = None # If not running there is no current.pc
+    if cur is not None:
+        closest = 0
+        for off in (a.get("offset", 0) for a in src.get("annotations", [])):
+            if abs(cur - closest) > abs(cur - off):
+                closest = off
+        pos_annotations = sorted([a for a in src.get("annotations", []) if a.get("offset") == closest],
+                         key=lambda a: a["start"])
+        if pos_annotations:
+            curline = source.count("\n", 0, pos_annotations[0]["start"])
+    source = source.split("\n")
+    # Append --> for the current line if possible
+    if curline is not None:
+        line = source[curline]
+        if line.startswith('    '):
+            line = line[4:]
+        source[curline] = '--> ' + line
+    # Join the source for highlighting
+    source = "\n".join(source)
+    if pwndbg.config.syntax_highlight:
+        # highlighting depends on the file extension to guess the language, so try to get one...
+        try: # try to read the source filename from debug information
+            src_filename = gdb.selected_frame().find_sal().symtab.fullname()
+        except: # if non, take the original filename and maybe append .c (just assuming is was c)
+            src_filename = filename+".c" if os.path.basename(filename).find(".") < 0 else filename
+        source = H.syntax_highlight(source, src_filename)
+    source = source.split("\n")
+    return banner + source if with_banner else source
+
+
 
 # @pwndbg.events.stop
-@pwndbg.commands.Command
+
+parser = argparse.ArgumentParser()
+parser.description = "Print out the current register, instruction, and stack context."
+parser.add_argument("subcontext", nargs="*", type=str, default=None, help="Submenu to display: 'reg', 'disasm', 'code', 'stack', 'backtrace', and/or 'args'")
+@pwndbg.commands.ArgparsedCommand(parser, aliases=['ctx'])
 @pwndbg.commands.OnlyWhenRunning
-def context(*args):
+def context(subcontext=None):
     """
     Print out the current register, instruction, and stack context.
 
     Accepts subcommands 'reg', 'disasm', 'code', 'stack', 'backtrace', and 'args'.
     """
+    if subcontext is None:
+        subcontext = []
+    args = subcontext
+
     if len(args) == 0:
         args = config_context_sections.split()
 
-    args = [a[0] for a in args]
+    sections = [("legend", lambda target=None, **kwargs: [M.legend()])] if args else []
+    sections += [(arg, context_sections.get(arg[0], None)) for arg in args]
 
-    result = [M.legend()] if args else []
-
-    for arg in args:
-        func = context_sections.get(arg, None)
+    result = defaultdict(list)
+    result_settings = defaultdict(dict)
+    for section, func in sections:
         if func:
-            result.extend(func())
-    result.extend(context_signal())
+            target = output(section)
+            # Last section of an output decides about output settings
+            settings = output_settings.get(section, {})
+            result_settings[target].update(settings)
+            with target as out:
+                result[target].extend(func(target=out,
+                                           width=settings.get("width", None),
+                                           with_banner=settings.get("banner_top", True)))
 
-    if config_clear_screen:
-        clear_screen()
+    for target, res in result.items():
+        settings = result_settings[target]
+        if len(res) > 0 and settings.get("banner_bottom", True):
+            with target as out:
+                res.append(pwndbg.ui.banner("", target=out,
+                                            width=settings.get("width", None)))
 
-    for line in result:
-        sys.stdout.write(line + '\n')
-    sys.stdout.flush()
+    for target, lines in result.items():
+        with target as out:
+            if result_settings[target].get("clearing", config_clear_screen) and lines:
+                clear_screen(out)
+            out.write("\n".join(lines))
+            if out is sys.stdout:
+                out.write('\n')
+            out.flush()
 
 
-def context_regs():
-    return [pwndbg.ui.banner("registers")] + get_regs()
+pwndbg.config.Parameter('show-compact-regs', False, 'whether to show a compact register view')
+pwndbg.config.Parameter('show-compact-regs-align', 20, 'the number of characters reserved for each register and value')
+pwndbg.config.Parameter('show-compact-regs-space', 4, 'the minimum number of characters separating each register')
 
 
-@pwndbg.commands.Command
+def calculate_padding_to_align(length, align):
+    ''' Calculates the number of spaces to append to reach the next alignment.
+        The next alignment point is given by "x * align >= length".
+    '''
+    return 0 if length % align == 0 else (align - (length % align))
+
+
+def compact_regs(regs, width):
+    align = int(pwndbg.config.show_compact_regs_align)
+    space = int(pwndbg.config.show_compact_regs_space)
+    result = []
+
+    line = ''
+    line_length = 0
+    for reg in regs:
+        reg_length = len(pwndbg.color.strip(reg))
+
+        # Length of line with space and padding is required for fitting the
+        # register string onto the screen / display
+        line_length_with_padding = line_length
+        line_length_with_padding += space if line_length != 0 else 0
+        line_length_with_padding += calculate_padding_to_align(line_length_with_padding, align)
+
+        # When element does not fully fit, then start a new line
+        if line_length_with_padding + max(reg_length, align) > width:
+            result.append(line)
+
+            line = ''
+            line_length = 0
+            line_length_with_padding = 0
+
+        # Add padding
+        if line != '':
+            line += ' ' * (line_length_with_padding - line_length)
+
+        line += reg
+        line_length = line_length_with_padding + reg_length
+
+    if line != '':
+        result.append(line)
+
+    return result
+
+
+def context_regs(target=sys.stdout, with_banner=True, width=None):
+    if width is None:
+        _height, width = pwndbg.ui.get_window_size(target=target)
+
+    regs = get_regs()
+    if pwndbg.config.show_compact_regs:
+        regs = compact_regs(regs, width)
+
+    banner = [pwndbg.ui.banner("registers", target=target, width=width)]
+    return banner + regs if with_banner else regs
+
+
+parser = argparse.ArgumentParser()
+parser.description = '''Print out all registers and enhance the information.'''
+parser.add_argument("regs", nargs="*", type=str, default=None, help="Registers to be shown")
+@pwndbg.commands.ArgparsedCommand(parser)
 @pwndbg.commands.OnlyWhenRunning
-def regs(*regs):
+def regs(regs=None):
     '''Print out all registers and enhance the information.'''
     print('\n'.join(get_regs(*regs)))
 
@@ -139,30 +456,11 @@ def get_regs(*regs):
         change_marker = "%s" % C.config_register_changed_marker
         m = ' ' * len(change_marker) if reg not in changed else C.register_changed(change_marker)
 
-        if reg not in pwndbg.regs.flags:
-            desc = pwndbg.chain.format(value)
+        if reg in pwndbg.regs.flags:
+            desc = C.format_flags(value, pwndbg.regs.flags[reg], pwndbg.regs.last.get(reg, 0))
 
         else:
-            names = []
-            desc  = C.flag_value('%#x' % value)
-            last  = pwndbg.regs.last.get(reg, 0) or 0
-            flags = pwndbg.regs.flags[reg]
-
-            for name, bit in sorted(flags.items()):
-                bit = 1<<bit
-                if value & bit:
-                    name = name.upper()
-                    name = C.flag_set(name)
-                else:
-                    name = name.lower()
-                    name = C.flag_unset(name)
-
-                if value & bit != last & bit:
-                    name = C.flag_changed(name)
-                names.append(name)
-
-            if names:
-                desc = '%s %s %s %s' % (desc, C.flag_bracket('['), ' '.join(names), C.flag_bracket(']'))
+            desc = pwndbg.chain.format(value)
 
         result.append("%s%s %s" % (m, regname, desc))
 
@@ -173,8 +471,8 @@ Unicorn emulation of code near the current instruction
 ''')
 code_lines = pwndbg.config.Parameter('context-code-lines', 10, 'number of additional lines to print in the code context')
 
-def context_disasm():
-    banner = [pwndbg.ui.banner("disasm")]
+def context_disasm(target=sys.stdout, with_banner=True, width=None):
+    banner = [pwndbg.ui.banner("disasm", target=target, width=width)]
     emulate = bool(pwndbg.config.emulate)
     result = pwndbg.commands.nearpc.nearpc(to_string=True, emulate=emulate, lines=code_lines // 2)
 
@@ -183,7 +481,7 @@ def context_disasm():
     while len(result) < code_lines + 1:
         result.append('')
 
-    return banner + result
+    return banner + result if with_banner else result
 
 theme.Parameter('highlight-source', True, 'whether to highlight the closest source line')
 source_code_lines = pwndbg.config.Parameter('context-source-code-lines',
@@ -194,7 +492,7 @@ theme.Parameter('code-prefix', '►', "prefix marker for 'context code' command"
 @pwndbg.memoize.reset_on_start
 def get_highlight_source(filename):
     # Notice that the code is cached
-    with open(filename) as f:
+    with open(filename, encoding='utf-8') as f:
         source = f.read()
 
     if pwndbg.config.syntax_highlight:
@@ -204,106 +502,109 @@ def get_highlight_source(filename):
     source_lines = tuple(line.rstrip() for line in source_lines)
     return source_lines
 
+def get_filename_and_formatted_source():
+    """
+    Returns formatted, lines limited and highlighted source as list
+    or if it isn't there - an empty list
+    """
+    sal = gdb.selected_frame().find_sal()  # gdb.Symtab_and_line
 
-def context_code():
+    # Check if source code is available
+    if sal.symtab is None:
+        return '', []
+
+    # Get the full source code
+    closest_line = sal.line
+    filename = sal.symtab.fullname()
+
     try:
-        # Compute the closest pc and line number
-        symtab = gdb.selected_frame().find_sal().symtab
-        linetable = symtab.linetable()
-
-        closest_pc = -1
-        closest_line = -1
-        for line in linetable:
-            if closest_pc < line.pc <= pwndbg.regs.pc:
-                closest_line = line.line
-                closest_pc   = line.pc
-
-        if closest_line < 0:
-            return []
-
-        # Get the full source code
-        filename = symtab.fullname()
         source = get_highlight_source(filename)
+    except IOError:
+        return '', []
 
-        # If it starts on line 1, it's not really using the
-        # correct source code.
-        if not source or closest_line <= 1:
-            return []
+    if not source:
+        return '', []
 
-        n = int(source_code_lines)
+    n = int(source_code_lines)
 
-        # Compute the line range
-        start = max(closest_line - 1 - n//2, 0)
-        end = min(closest_line - 1 + n//2 + 1, len(source))
-        num_width = len(str(end))
+    # Compute the line range
+    start = max(closest_line - 1 - n//2, 0)
+    end = min(closest_line - 1 + n//2 + 1, len(source))
+    num_width = len(str(end))
 
-        # split the code
-        source = source[start:end]
+    # split the code
+    source = source[start:end]
 
-        # Compute the prefix_sign length
-        prefix_sign = pwndbg.config.code_prefix
-        prefix_width = len(prefix_sign)
+    # Compute the prefix_sign length
+    prefix_sign = pwndbg.config.code_prefix
+    prefix_width = len(prefix_sign)
 
-        # Format the output
-        formatted_source = []
-        for line_number, code in enumerate(source, start=start + 1):
-            fmt = ' {prefix_sign:{prefix_width}} {line_number:>{num_width}} {code}'
-            if pwndbg.config.highlight_source and line_number == closest_line:
-                fmt = C.highlight(fmt)
+    # Format the output
+    formatted_source = []
+    for line_number, code in enumerate(source, start=start + 1):
+        fmt = ' {prefix_sign:{prefix_width}} {line_number:>{num_width}} {code}'
+        if pwndbg.config.highlight_source and line_number == closest_line:
+            fmt = C.highlight(fmt)
 
-            line = fmt.format(
-                prefix_sign=C.prefix(prefix_sign) if line_number == closest_line else '',
-                prefix_width=prefix_width,
-                line_number=line_number,
-                num_width=num_width,
-                code=code
-            )
-            formatted_source.append(line)
+        line = fmt.format(
+            prefix_sign=C.prefix(prefix_sign) if line_number == closest_line else '',
+            prefix_width=prefix_width,
+            line_number=line_number,
+            num_width=num_width,
+            code=code
+        )
+        formatted_source.append(line)
 
-        banner = [pwndbg.ui.banner("Source (code)")]
-        banner.extend(formatted_source)
-        return banner
-    except:
-        pass
+    return filename, formatted_source
 
+
+def context_code(target=sys.stdout, with_banner=True, width=None):
+    filename, formatted_source = get_filename_and_formatted_source()
+
+    # Try getting source from files
+    if formatted_source:
+        bannerline = [pwndbg.ui.banner("Source (code)", target=target, width=width)] if with_banner else []
+        return bannerline + ['In file: %s' % filename] + formatted_source
+
+    # Try getting source from IDA Pro Hex-Rays Decompiler
     if not pwndbg.ida.available():
         return []
 
-    name = pwndbg.ida.GetFunctionName(pwndbg.regs.pc)
-    addr = pwndbg.ida.LocByName(name)
+    n = int(int(int(source_code_lines) / 2)) # int twice to make it a real int instead of inthook
     # May be None when decompilation failed or user loaded wrong binary in IDA
-    code = pwndbg.ida.decompile(addr)
+    code = pwndbg.ida.decompile_context(pwndbg.regs.pc, n)
 
     if code:
-        return [pwndbg.ui.banner("Hexrays pseudocode")] + code.splitlines()
+        bannerline = [pwndbg.ui.banner("Hexrays pseudocode", target=target, width=width)] if with_banner else []
+        return bannerline + code.splitlines()
     else:
         return []
 
 
 stack_lines = pwndbg.config.Parameter('context-stack-lines', 8, 'number of lines to print in the stack context')
 
-
-def context_stack():
-    result = [pwndbg.ui.banner("stack")]
+def context_stack(target=sys.stdout, with_banner=True, width=None):
+    result = [pwndbg.ui.banner("stack", target=target, width=width)] if with_banner else []
     telescope = pwndbg.commands.telescope.telescope(pwndbg.regs.sp, to_string=True, count=stack_lines)
     if telescope:
         result.extend(telescope)
     return result
 
+
+backtrace_lines = pwndbg.config.Parameter('context-backtrace-lines', 8, 'number of lines to print in the backtrace context')
 backtrace_frame_label = theme.Parameter('backtrace-frame-label', 'f ', 'frame number label for backtrace')
 
-
-def context_backtrace(frame_count=10, with_banner=True):
+def context_backtrace(with_banner=True, target=sys.stdout, width=None):
     result = []
 
     if with_banner:
-        result.append(pwndbg.ui.banner("backtrace"))
+        result.append(pwndbg.ui.banner("backtrace", target=target, width=width))
 
     this_frame    = gdb.selected_frame()
     newest_frame  = this_frame
     oldest_frame  = this_frame
 
-    for i in range(frame_count):
+    for i in range(backtrace_lines-1):
         try:
             candidate = oldest_frame.older()
         except gdb.MemoryError:
@@ -313,7 +614,7 @@ def context_backtrace(frame_count=10, with_banner=True):
             break
         oldest_frame = candidate
 
-    for i in range(frame_count):
+    for i in range(backtrace_lines-1):
         candidate = newest_frame.newer()
         if not candidate:
             break
@@ -342,7 +643,7 @@ def context_backtrace(frame_count=10, with_banner=True):
     return result
 
 
-def context_args(with_banner=True):
+def context_args(with_banner=True, target=sys.stdout, width=None):
     args = pwndbg.arguments.format_args(pwndbg.disasm.one())
 
     # early exit to skip section if no arg found
@@ -350,7 +651,7 @@ def context_args(with_banner=True):
         return []
 
     if with_banner:
-        args.insert(0, pwndbg.ui.banner("arguments"))
+        args.insert(0, pwndbg.ui.banner("arguments", target=target, width=width))
 
     return args
 
@@ -399,11 +700,13 @@ def context_signal():
 
 context_sections = {
     'r': context_regs,
-    #  'a': context_args,
+    'd': context_disasm,
+    'a': context_args,
     'c': context_code,
     's': context_stack,
-    'd': context_disasm,
-    #  'b': context_backtrace
+    'b': context_backtrace,
+    'e': context_expressions,
+    'g': context_ghidra,
 }
 
 

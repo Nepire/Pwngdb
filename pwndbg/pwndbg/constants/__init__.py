@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import pwndbg.arch
 
@@ -16,6 +12,7 @@ from . import thumb
 
 arches = {
     'arm': arm,
+    'armcm': arm,
     'i386': i386,
     'mips': mips,
     'x86-64': amd64,

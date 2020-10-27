@@ -17,7 +17,104 @@ All function call sites are annotated with the arguments to those functions.  Th
 
 A useful summary of the current execution context is printed every time GDB stops (e.g. breakpoint or single-step), displaying all registers, the stack, call frames, disassembly, and additionally recursively dereferencing all pointers.  All memory addresses are color-coded to the type of memory they represent.
 
+The output of the context may be redirected to a file (including other tty) by using `set context-output /path/to/file` while leaving other output in place.
+
 ![](caps/context.png)  
+
+### Splitting / Layouting Context
+
+The context sections can be distributed among different tty by using the `contextoutput` command.
+Example: `contextoutput stack /path/to/tty true`
+
+Python can be used to create a tmux layout when starting pwndbg and distributing the context among
+the splits.
+```python
+python
+import atexit
+import os
+from pwndbg.commands.context import contextoutput, output, clear_screen
+bt = os.popen('tmux split-window -P -F "#{pane_id}:#{pane_tty}" -d "cat -"').read().strip().split(":")
+st = os.popen(F'tmux split-window -h -t {bt[0]} -P -F '+'"#{pane_id}:#{pane_tty}" -d "cat -"').read().strip().split(":")
+re = os.popen(F'tmux split-window -h -t {st[0]} -P -F '+'"#{pane_id}:#{pane_tty}" -d "cat -"').read().strip().split(":")
+di = os.popen('tmux split-window -h -P -F "#{pane_id}:#{pane_tty}" -d "cat -"').read().strip().split(":")
+panes = dict(backtrace=bt, stack=st, regs=re, disasm=di)
+for sec, p in panes.items():
+  contextoutput(sec, p[1], True)
+contextoutput("legend", di[1], True)
+atexit.register(lambda: [os.popen(F"tmux kill-pane -t {p[0]}").read() for p in panes.values()])
+end
+```
+If you like it simple, try configuration with [splitmind](https://github.com/jerdna-regeiz/splitmind)
+
+![](caps/context_splitting.png)
+
+Note above example uses splitmind and following configuration:
+
+```python
+python
+import splitmind
+(splitmind.Mind()
+  .tell_splitter(show_titles=True)
+  .tell_splitter(set_title="Main")
+  .right(display="backtrace", size="25%")
+  .above(of="main", display="disasm", size="80%", banner="top")
+  .show("code", on="disasm", banner="none")
+  .right(cmd='tty; tail -f /dev/null', size="65%", clearing=False)
+  .tell_splitter(set_title='Input / Output')
+  .above(display="stack", size="75%")
+  .above(display="legend", size="25")
+  .show("regs", on="legend")
+  .below(of="backtrace", cmd="ipython", size="30%")
+).build(nobanner=True)
+end
+```
+
+### Watch Expressions
+
+You can add expressions to be watched by the context.
+Those expressions are evaluated and shown on every context refresh.
+
+An expression can be added via the `contextwatch` command (aliased `ctx-watch` and `cwatch`).
+
+Per default an expression is parsed and evaluated in the debugged language and can be added with:
+```
+contextwatch BUF
+ctx-watch ITEMS[0]
+```
+
+Alternatively one can provide an arbitrary gdb command to be executed and the result printed in the
+context by using the optional `cmd` parameter with the value `execute`:
+```
+contextwatch exectue "ds BUF"
+cwatch execute "x/20x $rsp"
+```
+
+### Ghidra
+
+With the help of [radare2](https://github.com/radareorg/radare2) it is possible to show the
+decompiled source code of the ghidra decompiler.
+
+However, this comes with some prerequisites.
+* First: you have to have installed radare2 and it must be found by gdb (within path)
+* Second: you have to install the ghidra plugin for radare2
+  [r2ghidra-dec](https://github.com/radareorg/r2ghidra-dec)
+* Third: r2pipe has to be installed in the python-context gdb is using
+
+The decompiled source be shown as part of the context by adding `ghidra` to `set context-sections`
+or by calling `ctx-ghidra [function]` manually.
+
+Be warned, the first call to radare2/r2ghidra-dec is rather slow! Subsequent requests for decompiled
+source will be faster. And it does take up some resources as the radare2 instance is kept by r2pipe
+to enable faster subsequent analysis.
+
+With those performance penalties it is resonable to not have it launch always. Therefore it includes
+an option to only start it when required with `set context-ghidra`:
+* `set context-ghidra always`: always trigger the ghidra context
+* `set context-ghidra never`: never trigger the ghidra context except when called manually
+* `set context-ghidra if-no-source`: invoke ghidra if no source code is available
+
+Remark: the plugin tries to guess the correct current line and mark it with "-->", but it might
+get it wrong.
 
 ## Disassembly
 
@@ -58,7 +155,8 @@ Pwndbg enables introspection of the glibc allocator, ptmalloc2, via a handful of
 ![](caps/heap_heap2.png)  
 ![](caps/heap_mallocchunk.png)  
 ![](caps/heap_topchunk.png)  
-![](caps/fake_fast.png)  
+![](caps/heap_fake_fast.png)
+![](caps/heap_try_free.png)  
 
 ## IDA Pro Integration
 
@@ -133,6 +231,11 @@ Just use the `rop` command!
 Pwndbg makes searching the target memory space easy, with a complete and easy-to-use interface.  Whether you're searching for bytes, strings, or various sizes of integer values or pointers, it's a simple command away.
 
 ![](caps/search.png)  
+
+## Finding Leaks
+![](caps/leakfind.png)
+Finding leak chains can be done using the `leakfind` command. It recurisvely inspects address ranges for pointers, and reports on all pointers found.
+
 
 ## Telescope
 

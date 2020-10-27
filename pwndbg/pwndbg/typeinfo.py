@@ -4,10 +4,6 @@
 Common types, and routines for manually loading types from file
 via GCC.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import glob
 import os
@@ -43,29 +39,40 @@ def lookup_types(*types):
     raise exc
 
 
+@pwndbg.events.new_objfile
 @pwndbg.events.start
 @pwndbg.events.stop
 def update():
 
     module.char   = gdb.lookup_type('char')
-    module.ulong  = lookup_types('unsigned long', 'uint', 'u32')
-    module.long   = lookup_types('long', 'int')
-    module.uchar  = lookup_types('unsigned char', 'ubyte')
-    module.ushort = lookup_types('unsigned short', 'ushort', 'u16')
-    module.uint   = lookup_types('unsigned int', 'uint')
+    module.ulong  = lookup_types('unsigned long', 'uint', 'u32', 'uint32')
+    module.long   = lookup_types('long', 'int', 'i32', 'int32')
+    module.uchar  = lookup_types('unsigned char', 'ubyte', 'u8', 'uint8')
+    module.ushort = lookup_types('unsigned short', 'ushort', 'u16', 'uint16')
+    module.uint   = lookup_types('unsigned int', 'uint', 'u32', 'uint32')
     module.void   = lookup_types('void', '()')
+    
     module.uint8  = module.uchar
     module.uint16 = module.ushort
     module.uint32 = module.uint
-    module.uint64 = lookup_types('unsigned long long', 'ulong', 'u64')
+    module.uint64 = lookup_types('unsigned long long', 'ulong', 'u64', 'uint64')
+    module.unsigned = {
+        1: module.uint8,
+        2: module.uint16,
+        4: module.uint32,
+        8: module.uint64
+    }
 
-    module.int8   = gdb.lookup_type('char')
-    module.int16  = lookup_types('short', 'i16')
-    module.int32  = gdb.lookup_type('int')
-    module.int64  = lookup_types('long long', 'long', 'i64')
-
-    module.ssize_t = module.long
-    module.size_t = module.ulong
+    module.int8   = lookup_types('char', 'i8', 'int8')
+    module.int16  = lookup_types('short', 'i16', 'int16')
+    module.int32  = lookup_types('int', 'i32', 'int32')
+    module.int64  = lookup_types('long long', 'long', 'i64', 'int64')
+    module.signed = {
+        1: module.int8,
+        2: module.int16,
+        4: module.int32,
+        8: module.int64
+    }
 
     module.pvoid  = void.pointer()
     module.ppvoid = pvoid.pointer()
@@ -73,9 +80,16 @@ def update():
 
     module.ptrsize = pvoid.sizeof
 
-    if pvoid.sizeof == 4: module.ptrdiff = uint32
-    if pvoid.sizeof == 8: module.ptrdiff = uint64
-
+    if pvoid.sizeof == 4: 
+        module.ptrdiff = module.uint32
+        module.size_t = module.uint32
+        module.ssize_t = module.int32
+    elif pvoid.sizeof == 8: 
+        module.ptrdiff = module.uint64
+        module.size_t = module.uint64
+        module.ssize_t = module.int64
+    else:
+        raise Exception('Pointer size not supported')
     module.null = gdb.Value(0).cast(void)
 
 # Call it once so we load all of the types

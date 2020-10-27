@@ -29,15 +29,8 @@
 #  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import ctypes
 import sys
-
-import six
 
 import pwndbg.arch
 import pwndbg.ctypes
@@ -201,7 +194,7 @@ class constants:
     NT_AUXV                 = 6
     #
     # Note to userspace developers: size of NT_SIGINFO note may increase
-    # in the future to accomodate more fields, don't assume it is fixed!
+    # in the future to accommodate more fields, don't assume it is fixed!
     #
     NT_SIGINFO              = 0x53494749
     NT_FILE                 = 0x46494c45

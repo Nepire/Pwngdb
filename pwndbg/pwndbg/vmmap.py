@@ -7,17 +7,11 @@ address ranges with various ELF files and permissions.
 The reason that we need robustness is that not every operating
 system has /proc/$$/maps, which backs 'info proc mapping'.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import bisect
 import os
 import sys
 
 import gdb
-import six
 
 import pwndbg.abi
 import pwndbg.elf
@@ -47,7 +41,15 @@ def get():
     pages = []
     pages.extend(proc_pid_maps())
 
+    if not pages and pwndbg.arch.current in ('i386', 'x86-64') and pwndbg.qemu.is_qemu():
+        pages.extend(monitor_info_mem())
+
     if not pages:
+        # If debugee is launched from a symlink the debugee memory maps will be
+        # labeled with symlink path while in normal scenario the /proc/pid/maps
+        # labels debugee memory maps with real path (after symlinks).
+        # This is because the exe path in AUXV (and so `info auxv`) is before
+        # following links.
         pages.extend(info_auxv())
 
         if pages: pages.extend(info_sharedlibrary())
@@ -62,11 +64,10 @@ def get():
 
 @pwndbg.memoize.reset_on_stop
 def find(address):
-    if address is None or address < pwndbg.memory.MMAP_MIN_ADDR:
+    if address is None:
         return None
 
-    if address:
-        address = int(address)
+    address = int(address)
 
     for page in get():
         if address in page:
@@ -103,6 +104,7 @@ def explore(address_maybe):
     flags |= 1 if not pwndbg.stack.nx               else 0
 
     page = find_boundaries(address_maybe)
+    page.objfile = '<explored>'
     page.flags = flags
 
     explored_pages.append(page)
@@ -150,7 +152,9 @@ def proc_pid_maps():
         A list of pwndbg.memory.Page objects.
     """
 
-    if pwndbg.qemu.is_qemu_usermode():
+    # If we debug remotely a qemu-user or qemu-system target,
+    # there is no point of hitting things further
+    if pwndbg.qemu.is_qemu():
         return tuple()
 
     example_proc_pid_maps = """
@@ -190,14 +194,13 @@ def proc_pid_maps():
     else:
         return tuple()
 
-    if six.PY3:
-        data = data.decode()
+    data = data.decode()
 
     pages = []
     for line in data.splitlines():
         maps, perm, offset, dev, inode_objfile = line.split(None, 4)
 
-        try:    inode, objfile = inode_objfile.split()
+        try:    inode, objfile = inode_objfile.split(None, 1)
         except: objfile = ''
 
         start, stop = maps.split('-')
@@ -216,6 +219,53 @@ def proc_pid_maps():
         pages.append(page)
 
     return tuple(pages)
+
+@pwndbg.memoize.reset_on_stop
+def monitor_info_mem():
+    # NOTE: This works only on X86/X64/RISC-V
+    # See: https://github.com/pwndbg/pwndbg/pull/685
+    # (TODO: revisit with future QEMU versions)
+    #
+    # pwndbg> monitor info mem
+    # ffff903580000000-ffff903580099000 0000000000099000 -rw
+    # ffff903580099000-ffff90358009b000 0000000000002000 -r-
+    # ffff90358009b000-ffff903582200000 0000000002165000 -rw
+    # ffff903582200000-ffff903582803000 0000000000603000 -r-
+    try:
+        lines = gdb.execute('monitor info mem', to_string=True).splitlines()
+    except gdb.error:
+        # Likely a `gdb.error: "monitor" command not supported by this target.`
+        # TODO: add debug logging
+        return tuple()
+
+    # Handle disabled PG
+    # This will prevent a crash on abstract architectures
+    if len(lines) == 1 and lines[0] == 'PG disabled':
+        return tuple()
+
+    pages = []
+    for line in lines:
+        dash_idx = line.index('-')
+        space_idx = line.index(' ')
+        rspace_idx = line.rindex(' ')
+
+        start = int(line[:dash_idx], 16)
+        end = int(line[dash_idx+1:space_idx], 16)
+        size = int(line[space_idx+1:rspace_idx], 16)
+        assert end-start == size, "monitor info mem output didn't pass a sanity check"
+        perm = line[rspace_idx+1:]
+
+        flags = 0
+        if 'r' in perm: flags |= 4
+        if 'w' in perm: flags |= 2
+        # QEMU does not expose X/NX bit, see #685
+        #if 'x' in perm: flags |= 1
+        flags |= 1
+
+        pages.append(pwndbg.memory.Page(start, size, flags, 0, '<qemu>'))
+
+    return tuple(pages)
+
 
 @pwndbg.memoize.reset_on_stop
 def info_sharedlibrary():
@@ -326,7 +376,8 @@ def info_files():
 def info_auxv(skip_exe=False):
     """
     Extracts the name of the executable from the output of the command
-    "info auxv".
+    "info auxv". Note that if the executable path is a symlink,
+    it is not dereferenced by `info auxv` and we also don't dereference it.
 
     Arguments:
         skip_exe(bool): Do not return any mappings that belong to the exe.
@@ -393,7 +444,7 @@ def check_aslr():
         data = pwndbg.file.get('/proc/sys/kernel/randomize_va_space')
         if b'0' in data:
             vmmap.aslr = False
-            return vmmap.aslr
+            return vmmap.aslr, 'kernel.randomize_va_space == 0'
     except Exception as e:
         print("Could not check ASLR: Couldn't get randomize_va_space")
         pass
@@ -405,7 +456,7 @@ def check_aslr():
             personality = int(data, 16)
             if personality & 0x40000 == 0:
                 vmmap.aslr = True
-            return vmmap.aslr
+            return vmmap.aslr, 'read status from process\' personality'
         except:
             print("Could not check ASLR: Couldn't get personality")
             pass
@@ -418,7 +469,7 @@ def check_aslr():
     if "is off." in output:
         vmmap.aslr = True
 
-    return vmmap.aslr
+    return vmmap.aslr, 'show disable-randomization'
 
 @pwndbg.events.cont
 def mark_pc_as_executable():

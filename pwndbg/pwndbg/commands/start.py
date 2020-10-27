@@ -4,10 +4,9 @@
 Launches the target process after setting a breakpoint at a convenient
 entry point.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+import argparse
+import shlex
+from shlex import quote
 
 import gdb
 
@@ -15,15 +14,6 @@ import pwndbg.commands
 import pwndbg.elf
 import pwndbg.events
 import pwndbg.symbol
-
-# Py 2 vs Py 3
-try:
-    from shlex import quote
-except ImportError:
-    from pipes import quote
-
-
-
 
 break_on_first_instruction = False
 
@@ -37,17 +27,22 @@ def on_start():
         break_on_first_instruction = False
 
 
-@pwndbg.commands.Command
-def start(*a):
+parser = argparse.ArgumentParser(description="""
+    Set a breakpoint at a convenient location in the binary,
+    generally 'main', 'init', or the entry point.""")
+parser.add_argument("args", nargs="*", type=str, default=None, help="The arguments to run the binary with.")
+@pwndbg.commands.ArgparsedCommand(parser)
+def start(args=None):
+    if args is None:
+        args = []
     """
     Set a breakpoint at a convenient location in the binary,
     generally 'main', 'init', or the entry point.
     """
-    run = 'run ' + ' '.join(a)
+    run = 'run ' + ' '.join(args)
 
     symbols = ["main",
                 "_main",
-                "__libc_start_main",
                 "start",
                 "_start",
                 "init",
@@ -55,36 +50,33 @@ def start(*a):
 
     for symbol in symbols:
         address = pwndbg.symbol.address(symbol)
-        #  print(symbol, address)
 
         if not address:
             continue
 
-        #  print("no symbol found")
         b = gdb.Breakpoint(symbol, temporary=True)
         gdb.execute(run, from_tty=False, to_string=True)
         return
 
-    else:
-        b = gdb.Breakpoint("_start", temporary=True)
-        gdb.execute(run, from_tty=False, to_string=True)
-        return
-
-    #  print(run)
     # Try a breakpoint at the binary entry
-    entry(*a)
+    entry(args)
 
 
-@pwndbg.commands.Command
+parser = argparse.ArgumentParser(description="""
+    Set a breakpoint at the first instruction executed in
+    the target binary.
+    """)
+parser.add_argument("args", nargs="*", type=str, default=None, help="The arguments to run the binary with.")
+@pwndbg.commands.ArgparsedCommand(parser)
 @pwndbg.commands.OnlyWithFile
-def entry(*a):
+def entry(args=None):
+    if args is None:
+        arg = []
     """
     Set a breakpoint at the first instruction executed in
     the target binary.
     """
-    print("calling entry")
     global break_on_first_instruction
     break_on_first_instruction = True
-    run = 'run ' + ' '.join(map(quote, a))
-    print(run)
+    run = 'run ' + ' '.join(map(quote, args))
     gdb.execute(run, from_tty=False)

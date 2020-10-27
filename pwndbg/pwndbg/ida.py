@@ -5,11 +5,6 @@ Talks to an XMLRPC server running inside of an active IDA Pro instance,
 in order to query it about the database.  Allows symbol resolution and
 interactive debugging.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import errno
 import functools
 import socket
@@ -18,7 +13,6 @@ import time
 import traceback
 
 import gdb
-import six
 
 import pwndbg.arch
 import pwndbg.config
@@ -43,9 +37,6 @@ ida_timeout = pwndbg.config.Parameter('ida-timeout', 2, 'time to wait for ida xm
 
 xmlrpclib.Marshaller.dispatch[int] = lambda _, v, w: w("<value><i8>%d</i8></value>" % v)
 
-if six.PY2:
-    xmlrpclib.Marshaller.dispatch[long] = lambda _, v, w: w("<value><i8>%d</i8></value>" % v)
-
 xmlrpclib.Marshaller.dispatch[type(0)] = lambda _, v, w: w("<value><i8>%d</i8></value>" % v)
 
 _ida = None
@@ -58,7 +49,7 @@ _ida_last_connection_check = 0
 
 
 @pwndbg.decorators.only_after_first_prompt()
-@pwndbg.config.Trigger([ida_rpc_host, ida_rpc_port, ida_timeout])
+@pwndbg.config.Trigger([ida_rpc_host, ida_rpc_port, ida_enabled, ida_timeout])
 def init_ida_rpc_client():
     global _ida, _ida_last_exception, _ida_last_connection_check
 
@@ -107,7 +98,7 @@ def init_ida_rpc_client():
     _ida_last_connection_check = now
 
 
-class withIDA(object):
+class withIDA:
     def __init__(self, fn):
         self.fn = fn
         functools.update_wrapper(self, fn)
@@ -227,7 +218,8 @@ def here():
 @withIDA
 @takes_address
 def Jump(addr):
-    return _ida.Jump(addr)
+    # uses C++ api instead of idc one to avoid activating the IDA window
+    return _ida.jumpto(addr, -1, 0)
 
 
 @withIDA
@@ -391,6 +383,13 @@ def decompile(addr):
     return _ida.decompile(addr)
 
 
+@withHexrays
+@takes_address
+@pwndbg.memoize.reset_on_stop
+def decompile_context(pc, context_lines):
+    return _ida.decompile_context(pc, context_lines)
+
+
 @withIDA
 @pwndbg.memoize.forever
 def get_ida_versions():
@@ -457,7 +456,7 @@ def GetStrucNextOff(sid, offset):
     return _ida.GetStrucNextOff(sid, offset)
 
 
-class IDC(object):
+class IDC:
     query = "{k:v for k,v in globals()['idc'].__dict__.items() if type(v) in (int,long)}"
 
     def __init__(self):

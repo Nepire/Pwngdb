@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import struct
 import sys
 
@@ -26,11 +21,18 @@ native_endian = str(sys.byteorder)
 
 
 def fix_arch(arch):
-    arches = ['x86-64', 'i386', 'mips', 'powerpc', 'sparc', 'arm', 'aarch64', arch]
-    return next(a for a in arches if a in arch)
+    for match in ['x86-64', 'i386', 'mips', 'powerpc', 'sparc', 'aarch64']:
+        if match in arch:
+            return match
 
+    # Distinguish between Cortex-M and other ARM
+    if 'arm' in arch:
+        return 'armcm' if '-m' in arch else 'arm'
+
+    return arch
 
 @pwndbg.events.start
+@pwndbg.events.stop
 @pwndbg.events.new_objfile
 def update():
     m = sys.modules[__name__]
@@ -59,10 +61,6 @@ def update():
     (8, 'little'): '<Q',
     (8, 'big'):    '>Q',
     }.get((m.ptrsize, m.endian))
-
-    # Work around Python 2.7.6 struct.pack / unicode incompatibility
-    # See https://github.com/pwndbg/pwndbg/pull/336 for more information.
-    m.fmt = str(m.fmt)
 
     # Attempt to detect the qemu-user binary name
     if m.current == 'arm' and m.endian == 'big':

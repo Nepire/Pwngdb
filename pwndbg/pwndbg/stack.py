@@ -7,10 +7,6 @@ a stack.
 Generally not needed, except under qemu-user and for when
 binaries do things to remap the stack (e.g. pwnies' postit).
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import gdb
 
@@ -66,7 +62,9 @@ def update():
             thread.switch()
             sp = pwndbg.regs.sp
 
-            if sp is None:
+            # Skip if sp is None or 0
+            # (it might be 0 if we debug a qemu kernel)
+            if not sp:
                 continue
 
             sp_low = sp & ~(0xfff)

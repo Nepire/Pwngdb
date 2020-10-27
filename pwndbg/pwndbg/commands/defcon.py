@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+
+import argparse
 
 import gdb
 
@@ -13,8 +11,10 @@ import pwndbg.symbol
 import pwndbg.vmmap
 from pwndbg.color import message
 
-
-@pwndbg.commands.Command
+parser = argparse.ArgumentParser()
+parser.description = "Print out the heap (defcon edition)."
+parser.add_argument("addr", nargs="?", type=int, default=0x2aaaaaad5000, help="The address of the heap.")
+@pwndbg.commands.ArgparsedCommand(parser)
 @pwndbg.commands.OnlyWhenRunning
 def defcon_heap(addr=0x2aaaaaad5000):
 # def heap(addr=0x2aaaaaaaf000):

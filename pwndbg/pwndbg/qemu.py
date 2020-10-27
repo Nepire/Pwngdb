@@ -3,10 +3,6 @@
 """
 Determine whether the target is being run under QEMU.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import os
 
@@ -22,6 +18,10 @@ def is_qemu():
     if not pwndbg.remote.is_remote():
         return False
 
+    # Example:
+    # pwndbg> maintenance packet Qqemu.sstepbits
+    # sending: "Qqemu.sstepbits"
+    # received: "ENABLE=1,NOIRQ=2,NOTIMER=4"
     response = gdb.execute('maintenance packet Qqemu.sstepbits',
                            to_string=True,
                            from_tty=False)
@@ -61,7 +61,7 @@ def is_qemu_kernel():
 @pwndbg.events.start
 @pwndbg.memoize.reset_on_stop
 def root():
-  global root
+  global binfmt_root
 
   if not is_qemu_usermode():
     return

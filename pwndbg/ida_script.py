@@ -114,6 +114,47 @@ def decompile(addr):
     except idaapi.DecompilationFailure:
         return None
 
+def get_decompile_coord_by_ea(cfunc, addr):
+    if idaapi.IDA_SDK_VERSION >= 720:
+        item = cfunc.body.find_closest_addr(addr)
+        y_holder = idaapi.int_pointer()
+        if not cfunc.find_item_coords(item, None, y_holder):
+            return None
+        y = y_holder.value()
+    else:
+        lnmap = {}
+        for i, line in enumerate(cfunc.pseudocode):
+            phead = idaapi.ctree_item_t()
+            pitem = idaapi.ctree_item_t()
+            ptail = idaapi.ctree_item_t()
+            ret = cfunc.get_line_item(line.line, 0, True, phead, pitem, ptail)
+            if ret and pitem.it:
+                lnmap[pitem.it.ea] = i
+        y = None
+        closest_ea = BADADDR
+        for ea,line in lnmap.items():
+            if closest_ea == BADADDR or abs(closest_ea - addr) > abs(ea - addr):
+                closest_ea = ea
+                y = lnmap[ea]
+
+    return y
+
+
+def decompile_context(addr, context_lines):
+    cfunc = decompile(addr)
+    if cfunc is None:
+        return None
+    y = get_decompile_coord_by_ea(cfunc, addr)
+    if y is None:
+        return cfunc
+    lines = cfunc.get_pseudocode()
+    retlines = []
+    for lnnum in range(max(0, y - context_lines), min(len(lines), y + context_lines)):
+        retlines.append(idaapi.tag_remove(lines[lnnum].line))
+        if lnnum == y:
+            retlines[-1] = '>' + retlines[-1][1:]
+    return '\n'.join(retlines)
+
 
 def versions():
     """Returns IDA & Python versions"""
@@ -130,7 +171,8 @@ register_module(idc)
 register_module(idautils)
 register_module(idaapi)
 server.register_function(lambda a: eval(a, globals(), locals()), 'eval')
-server.register_function(decompile)  # overwrites idaapi/ida_hexrays.decompie
+server.register_function(wrap(decompile)) # overwrites idaapi/ida_hexrays.decompile
+server.register_function(wrap(decompile_context), 'decompile_context')  # support context decompile
 server.register_function(versions)
 server.register_introspection_functions()
 

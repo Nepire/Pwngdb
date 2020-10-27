@@ -4,10 +4,6 @@
 Functions for determining the architecture-dependent path to
 GCC and any flags it should be executed with.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import collections
 import glob
@@ -57,7 +53,7 @@ def which_binutils(util, **kwargs):
     # Fix up binjitsu vs Debian triplet naming, and account
     # for 'thumb' being its own binjitsu architecture.
     arches = [arch] + {
-        'thumb':  ['arm',    'aarch64'],
+        'thumb':  ['arm', 'armcm', 'aarch64'],
         'i386':   ['x86_64', 'amd64'],
         'i686':   ['x86_64', 'amd64'],
         'i386:x86-64': ['x86_64', 'amd64'],

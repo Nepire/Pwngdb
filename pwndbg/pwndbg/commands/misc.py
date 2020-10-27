@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import argparse
 import errno as _errno
@@ -53,8 +49,10 @@ def pwndbg(filter_pattern):
     for name, docs in list_and_filter_commands(filter_pattern):
         print("%-20s %s" % (name, docs))
 
-
-@_pwndbg.commands.ParsedCommand
+parser = argparse.ArgumentParser(description='''Print the distance between the two arguments.''')
+parser.add_argument('a', type=int, help="The first address.")
+parser.add_argument('b', type=int, help="The second address.")
+@_pwndbg.commands.ArgparsedCommand(parser)
 def distance(a, b):
     '''Print the distance between the two arguments'''
     a = int(a) & _arch.ptrmask

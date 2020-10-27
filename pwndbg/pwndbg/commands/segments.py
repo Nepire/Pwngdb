@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import gdb
 
@@ -24,7 +20,7 @@ class segment(gdb.Function):
 segment('fsbase')
 segment('gsbase')
 
-@pwndbg.commands.ParsedCommand
+@pwndbg.commands.ArgparsedCommand("Prints out the FS base address.  See also $fsbase.")
 @pwndbg.commands.OnlyWhenRunning
 def fsbase():
     """
@@ -33,7 +29,7 @@ def fsbase():
     print(hex(int(pwndbg.regs.fsbase)))
 
 
-@pwndbg.commands.ParsedCommand
+@pwndbg.commands.ArgparsedCommand("Prints out the GS base address.  See also $gsbase.")
 @pwndbg.commands.OnlyWhenRunning
 def gsbase():
     """

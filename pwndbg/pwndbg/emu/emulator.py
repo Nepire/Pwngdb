@@ -3,10 +3,6 @@
 """
 Emulation assistance from Unicorn.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import binascii
 import re
@@ -113,7 +109,7 @@ e.until_jump()
 '''
 
 
-class Emulator(object):
+class Emulator:
     def __init__(self):
         self.arch = pwndbg.arch.current
 
@@ -142,7 +138,7 @@ class Emulator(object):
         self._curr = None
 
         # Initialize the register state
-        for reg in list(self.regs.misc) + list(self.regs.common) + list(self.regs.flags):
+        for reg in list(self.regs.retaddr) + list(self.regs.misc) + list(self.regs.common) + list(self.regs.flags):
             enum = self.get_reg_enum(reg)
 
             if not reg:
@@ -199,8 +195,12 @@ class Emulator(object):
         arch = pwndbg.arch.current
         mode = 0
 
-        if arch in ('arm', 'aarch64'):
-            mode |= {0:U.UC_MODE_ARM,0x20:U.UC_MODE_THUMB}[pwndbg.regs.cpsr & 0x20]
+        if arch == 'armcm':
+            mode |= (U.UC_MODE_MCLASS | U.UC_MODE_THUMB) if (pwndbg.regs.xpsr & (1<<24)) else U.UC_MODE_MCLASS
+
+        elif arch in ('arm', 'aarch64'):
+            mode |= U.UC_MODE_THUMB if (pwndbg.regs.cpsr & (1<<5)) else U.UC_MODE_ARM
+
         else:
             mode |= {4:U.UC_MODE_32, 8:U.UC_MODE_64}[pwndbg.arch.ptrsize]
 
@@ -450,7 +450,7 @@ class Emulator(object):
         self._single_step = (address, instruction_size)
 
     def dumpregs(self):
-        for reg in list(self.regs.misc) + list(self.regs.common) + list(self.regs.flags):
+        for reg in list(self.regs.retaddr) + list(self.regs.misc) + list(self.regs.common) + list(self.regs.flags):
             enum = self.get_reg_enum(reg)
 
             if not reg or enum is None:

@@ -5,10 +5,6 @@ Provides values which would be available from /proc which
 are not fulfilled by other modules and some process/gdb flow
 related information.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import functools
 import sys
@@ -62,16 +58,7 @@ class module(ModuleType):
 
     @property
     def exe(self):
-        #  for obj in gdb.objfiles():
-            #  #  print(obj.filenme)
-            #  #  print(gdb.objfiles())
-            #  if obj.filename:
-                #  print(obj.filename)
-                #  #  return obj.filename
-            #  break
-        if self.alive:
-            auxv = pwndbg.auxv.get()
-            return auxv['AT_EXECFN']
+        return gdb.current_progspace().filename
 
     @property
     def mem_page(self):
